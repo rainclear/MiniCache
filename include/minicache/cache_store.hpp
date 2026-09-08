@@ -8,6 +8,8 @@
 #include <chrono>
 #include <shared_mutex>
 #include <cstdint>
+#include <thread>     // For std::jthread
+#include <stop_token> // For std::stop_token
 
 namespace minicache {
 
@@ -32,14 +34,18 @@ public:
     using NodeList = std::list<CacheNode>;
     using NodeIter = NodeList::iterator;
 
-    explicit CacheStore(std::size_t capacity = 100);
-    ~CacheStore() = default;
+    /**
+     * @param capacity Maximum number of items in cache.
+     * @param cleanup_interval_ms Active purge interval in milliseconds. Set to 0 to disable.
+     */
+    explicit CacheStore(std::size_t capacity = 100, std::int64_t cleanup_interval_ms = 500);
+    ~CacheStore();
 
-    // Non-copyable, move-only
+    // Non-copyable, non-movable due to thread and mutex management
     CacheStore(const CacheStore&) = delete;
     CacheStore& operator=(const CacheStore&) = delete;
-    CacheStore(CacheStore&&) noexcept = default;
-    CacheStore& operator=(CacheStore&&) noexcept = default;
+    CacheStore(CacheStore&&) = delete;
+    CacheStore& operator=(CacheStore&&) = delete;
 
     /**
      * @brief Inserts or updates a key-value pair with an optional TTL in milliseconds.
@@ -64,12 +70,16 @@ public:
     [[nodiscard]] std::size_t size() const;
 
 private:
-    void evict();
+void evict();
+    void active_purge_loop(std::stop_token stop_tok, std::chrono::milliseconds interval);
 
     std::size_t capacity_;
     NodeList lru_list_;
     std::unordered_map<std::string, NodeIter> map_;
     mutable std::shared_mutex mutex_;
+
+    // C++20 background worker thread
+    std::jthread purge_thread_;
 };
 
 } // namespace minicache
