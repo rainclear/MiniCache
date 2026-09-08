@@ -28,3 +28,6 @@ target_link_libraries(test_command PRIVATE minicache_lib)
 
 add_executable(test_object_pool tests/test_object_pool.cpp)
 target_link_libraries(test_object_pool PRIVATE minicache_lib)
+
+add_executable(test_sharded_cache tests/test_sharded_cache.cpp)
+target_link_libraries(test_sharded_cache PRIVATE minicache_lib)

@@ -23,19 +23,23 @@ int main() {
     execute_and_print(store, "SET user:10086 \"Alice Zhang\"");
     execute_and_print(store, "GET user:10086");
 
-    // 2. Test TTL via SET Command (100ms)
+    // 2. Test PING
+    execute_and_print(store, "PING");
+
+    // 3. Test TTL via SET Command (100ms)
     execute_and_print(store, "SET temp_key temp_val 100");
+    execute_and_print(store, "PING");
     execute_and_print(store, "GET temp_key");
 
     std::cout << "\nSleeping 150ms...\n";
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     execute_and_print(store, "GET temp_key"); // Should yield (nil)
 
-    // 3. Test DEL
+    // 4. Test DEL
     execute_and_print(store, "DEL user:10086");
     execute_and_print(store, "GET user:10086"); // Should yield (nil)
 
-    // 4. Test Invalid Command
+    // 5. Test Invalid Command
     execute_and_print(store, "INVALID_CMD foo bar");
 
     std::cout << "\n=== Phase 2 Command Engine Tests Passed! ===\n";
