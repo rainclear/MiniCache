@@ -1,6 +1,7 @@
 #include "minicache/cache_store.hpp"
 #include "minicache/aof_engine.hpp"
 #include "minicache/server.hpp"
+#include "minicache/object_pool.hpp"
 
 #include <iostream>
 #include <csignal>
@@ -23,7 +24,6 @@ int main(int argc, char* argv[]) {
         port = std::atoi(argv[1]);
     }
 
-    // Register OS signal handlers for graceful exit
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
@@ -32,22 +32,25 @@ int main(int argc, char* argv[]) {
     std::cout << "==================================================\n";
 
     // 1. Initialize Storage Engine & AOF Persistence
-    minicache::CacheStore store(10000, 500); // 10k capacity, 500ms active TTL purge
+    minicache::CacheStore store(10000, 500);
     minicache::AofEngine aof("minicache.aof");
 
-    // 2. Replay AOF log if it exists
+    // 2. Replay AOF log if present
     std::cout << "[AOF] Replaying persistent logs from minicache.aof...\n";
     std::size_t replayed = aof.load(store);
     std::cout << "[AOF] Replayed " << replayed << " commands. Current cache size: " << store.size() << "\n";
 
-    // 3. Start Non-Blocking Epoll TCP Server
-    minicache::Server server(store, &aof, port);
+    // 3. Initialize Shared ObjectPool for Network Buffers
+    auto buffer_pool = std::make_shared<minicache::ObjectPool<minicache::NetworkBuffer>>(32);
+    std::cout << "[Pool] Pre-allocated " << buffer_pool->available_count() << " network buffers in ObjectPool.\n";
+
+    // 4. Start Server with Pooled Network I/O
+    minicache::Server server(store, &aof, port, buffer_pool);
     server.start();
 
-    std::cout << "[Server] MiniCache listening on 0.0.0.0:" << port << " (Redis RESP compatible)\n";
+    std::cout << "[Server] MiniCache listening on 0.0.0.0:" << port << " (RESP compatible, Pooled I/O)\n";
     std::cout << "[Server] Press Ctrl+C to stop.\n\n";
 
-    // Keep main thread alive until signal received
     while (g_running) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
