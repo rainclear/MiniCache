@@ -22,3 +22,6 @@ Makefile
 *.dylib
 test_cache
 test_command
+
+# Ignore persistent log files generated during local runs
+*.aof
