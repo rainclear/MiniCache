@@ -53,3 +53,29 @@ Designed as an in-process library (architecturally similar to LevelDB or SQLite)
 |   - std::shared_mutex                 - Custom Deleter RAII       |
 |   - std::unordered_map + std::list    - C++20 Resettable Concept  |
 +-------------------------------------------------------------------+
+
+```text
+[ Client (redis-cli) ]
+          │
+          │  RESP Protocol over TCP
+          ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ minicache::Server (epoll Non-Blocking Event Loop)                      │
+│                                                                        │
+│  1. Borrow Buffer ──► minicache::ObjectPool<NetworkBuffer>             │
+│                       (C++20 Resettable concept & custom deleters)     │
+│                                                                        │
+│  2. Tokenize RESP ──► minicache::RespParser                            │
+│                                                                        │
+│  3. Parse Instruction ─► minicache::CommandFactory                     │
+│                           │                                            │
+│                           ▼                                            │
+│                       minicache::Command (SET / GET / DEL)             │
+│                           │                                            │
+│            ┌──────────────┴──────────────┐                             │
+│            ▼                             ▼                             │
+│  minicache::CacheStore          minicache::AofEngine                   │
+│  - O(1) LRU & Map               - Append-only WAL                      │
+│  - std::shared_mutex            - Crash Recovery                       │
+│  - std::jthread Active Purge                                           │
+└────────────────────────────────────────────────────────────────────────┘
