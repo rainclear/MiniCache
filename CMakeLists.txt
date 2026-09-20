@@ -44,3 +44,6 @@ target_link_libraries(test_aof PRIVATE minicache_lib)
 
 add_executable(test_server tests/test_server.cpp)
 target_link_libraries(test_server PRIVATE minicache_lib)
+
+add_executable(test_thread_pool tests/test_thread_pool.cpp)
+target_link_libraries(test_thread_pool PRIVATE minicache_lib)

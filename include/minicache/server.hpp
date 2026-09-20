@@ -4,12 +4,15 @@
 #include "minicache/cache_store.hpp"
 #include "minicache/aof_engine.hpp"
 #include "minicache/object_pool.hpp"
+#include "minicache/thread_pool.hpp"
+
 #include <string>
 #include <thread>
 #include <stop_token>
 #include <memory>
 #include <cstring>
 #include <algorithm>
+#include <array>
 
 namespace minicache {
 
@@ -41,22 +44,31 @@ private:
 };
 
 /**
- * @brief Non-blocking Epoll-based TCP Server integrated with ObjectPool.
+ * @brief Non-blocking Epoll-based TCP Server integrated with ObjectPool and ThreadPool.
  */
 class Server {
 public:
     Server(CacheStore& store, 
            AofEngine* aof = nullptr, 
            int port = 6379,
-           std::shared_ptr<ObjectPool<NetworkBuffer>> buffer_pool = nullptr);
+           std::shared_ptr<ObjectPool<NetworkBuffer>> buffer_pool = nullptr,
+           std::shared_ptr<ThreadPool> thread_pool = nullptr);
     ~Server();
 
+    // Non-copyable, non-movable
     Server(const Server&) = delete;
     Server& operator=(const Server&) = delete;
     Server(Server&&) = delete;
     Server& operator=(Server&&) = delete;
 
+    /**
+     * @brief Starts the background TCP server event loop.
+     */
     void start();
+
+    /**
+     * @brief Signals the server event loop to stop and closes socket resources.
+     */
     void stop();
 
 private:
@@ -67,6 +79,7 @@ private:
     AofEngine* aof_;
     int port_;
     std::shared_ptr<ObjectPool<NetworkBuffer>> buffer_pool_;
+    std::shared_ptr<ThreadPool> thread_pool_;
     int listen_fd_{-1};
     int epoll_fd_{-1};
     std::jthread server_thread_;

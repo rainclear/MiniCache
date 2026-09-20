@@ -1,0 +1,122 @@
+#ifndef MINICACHE_THREAD_POOL_HPP
+#define MINICACHE_THREAD_POOL_HPP
+
+#include <vector>
+#include <queue>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
+#include <future>
+#include <concepts>
+#include <memory>
+#include <stop_token>
+
+namespace minicache {
+
+/**
+ * @brief Thread-safe C++20 ThreadPool for parallel task execution.
+ */
+class ThreadPool {
+public:
+    explicit ThreadPool(std::size_t num_threads = std::thread::hardware_concurrency()) {
+        if (num_threads == 0) num_threads = 2;
+        workers_.reserve(num_threads);
+
+        for (std::size_t i = 0; i < num_threads; ++i) {
+            workers_.emplace_back([this](std::stop_token stop_tok) {
+                worker_loop(stop_tok);
+            });
+        }
+    }
+
+    ~ThreadPool() {
+        stop();
+    }
+
+    // Non-copyable, non-movable
+    ThreadPool(const ThreadPool&) = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
+    ThreadPool(ThreadPool&&) = delete;
+    ThreadPool& operator=(ThreadPool&&) = delete;
+
+    /**
+     * @brief Enqueues a callable task to be executed asynchronously by a worker thread.
+     * @tparam F Callable type
+     * @tparam Args Argument types
+     * @return std::future holding the result of the callable
+     */
+    template <typename F, typename... Args>
+    auto enqueue(F&& f, Args&&... args) 
+        -> std::future<typename std::invoke_result_t<F, Args...>> 
+    {
+        using return_type = typename std::invoke_result_t<F, Args...>;
+
+        auto task = std::make_shared<std::packaged_task<return_type()>>(
+            std::bind(std::forward<F>(f), std::forward<Args>(args)...)
+        );
+
+        std::future<return_type> res = task->get_future();
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            if (stopping_) {
+                throw std::runtime_error("enqueue on stopped ThreadPool");
+            }
+            tasks_.emplace([task]() { (*task)(); });
+        }
+        cv_.notify_one();
+        return res;
+    }
+
+    /**
+     * @brief Gracefully stops all worker threads and flushes pending tasks.
+     */
+    void stop() {
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            if (stopping_) return;
+            stopping_ = true;
+        }
+        cv_.notify_all();
+        // std::jthread automatically joins upon destruction or stop request
+        workers_.clear();
+    }
+
+    [[nodiscard]] std::size_t thread_count() const noexcept { return workers_.size(); }
+
+private:
+    void worker_loop(std::stop_token stop_tok) {
+        while (!stop_tok.stop_requested()) {
+            std::function<void()> task;
+            {
+                std::unique_lock<std::mutex> lock(queue_mutex_);
+                cv_.wait(lock, [this, &stop_tok]() {
+                    return stopping_ || !tasks_.empty() || stop_tok.stop_requested();
+                });
+
+                if ((stopping_ || stop_tok.stop_requested()) && tasks_.empty()) {
+                    return;
+                }
+
+                if (!tasks_.empty()) {
+                    task = std::move(tasks_.front());
+                    tasks_.pop();
+                }
+            }
+
+            if (task) {
+                task();
+            }
+        }
+    }
+
+    std::vector<std::jthread> workers_;
+    std::queue<std::function<void()>> tasks_;
+    mutable std::mutex queue_mutex_;
+    std::condition_variable cv_;
+    bool stopping_{false};
+};
+
+} // namespace minicache
+
+#endif // MINICACHE_THREAD_POOL_HPP

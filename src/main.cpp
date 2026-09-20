@@ -2,6 +2,7 @@
 #include "minicache/aof_engine.hpp"
 #include "minicache/server.hpp"
 #include "minicache/object_pool.hpp"
+#include "minicache/thread_pool.hpp"
 
 #include <iostream>
 #include <csignal>
@@ -44,11 +45,17 @@ int main(int argc, char* argv[]) {
     auto buffer_pool = std::make_shared<minicache::ObjectPool<minicache::NetworkBuffer>>(32);
     std::cout << "[Pool] Pre-allocated " << buffer_pool->available_count() << " network buffers in ObjectPool.\n";
 
-    // 4. Start Server with Pooled Network I/O
-    minicache::Server server(store, &aof, port, buffer_pool);
+    // 4. Initialize Worker ThreadPool for Parallel Task Execution
+    unsigned int num_workers = std::thread::hardware_concurrency();
+    if (num_workers == 0) num_workers = 4;
+    auto thread_pool = std::make_shared<minicache::ThreadPool>(num_workers);
+    std::cout << "[ThreadPool] Spawned " << thread_pool->thread_count() << " worker threads.\n";
+
+    // 5. Start Server with Pooled Network I/O and ThreadPool Offloading
+    minicache::Server server(store, &aof, port, buffer_pool, thread_pool);
     server.start();
 
-    std::cout << "[Server] MiniCache listening on 0.0.0.0:" << port << " (RESP compatible, Pooled I/O)\n";
+    std::cout << "[Server] MiniCache listening on 0.0.0.0:" << port << " (RESP compatible, Pooled I/O, Multi-Threaded Execution)\n";
     std::cout << "[Server] Press Ctrl+C to stop.\n\n";
 
     while (g_running) {
@@ -57,6 +64,8 @@ int main(int argc, char* argv[]) {
 
     std::cout << "[Server] Stopping network loop...\n";
     server.stop();
+    std::cout << "[ThreadPool] Flushing pending worker tasks...\n";
+    thread_pool->stop();
     std::cout << "[AOF] Flushing WAL to disk...\n";
     aof.sync();
 

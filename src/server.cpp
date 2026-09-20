@@ -14,10 +14,18 @@ namespace minicache {
 
 constexpr int kMaxEvents = 64;
 
-Server::Server(CacheStore& store, AofEngine* aof, int port, std::shared_ptr<ObjectPool<NetworkBuffer>> buffer_pool)
-    : store_(store), aof_(aof), port_(port), buffer_pool_(std::move(buffer_pool)) {
+Server::Server(CacheStore& store, 
+               AofEngine* aof, 
+               int port, 
+               std::shared_ptr<ObjectPool<NetworkBuffer>> buffer_pool,
+               std::shared_ptr<ThreadPool> thread_pool)
+    : store_(store), 
+      aof_(aof), 
+      port_(port), 
+      buffer_pool_(std::move(buffer_pool)), 
+      thread_pool_(std::move(thread_pool)) {
     if (!buffer_pool_) {
-        // Instantiate a default pool with 16 pre-allocated network buffers
+        // Instantiate a default pool with 16 pre-allocated network buffers if none provided
         buffer_pool_ = std::make_shared<ObjectPool<NetworkBuffer>>(16);
     }
 }
@@ -92,7 +100,9 @@ void Server::event_loop(std::stop_token stop_tok) {
                     epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, conn_fd, &ev);
                 }
             } else {
-                // Scope block: Acquire pooled buffer for zero-allocation I/O
+                std::string parsed_cmd;
+
+                // Acquire pooled buffer for zero-allocation socket read
                 {
                     auto io_buf = buffer_pool_->acquire();
                     ssize_t bytes_read = read(client_fd, io_buf->data(), io_buf->capacity() - 1);
@@ -100,35 +110,44 @@ void Server::event_loop(std::stop_token stop_tok) {
                     if (bytes_read <= 0) {
                         epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, client_fd, nullptr);
                         close(client_fd);
-                    } else {
-                        io_buf->set_size(static_cast<std::size_t>(bytes_read));
-                        io_buf->data()[bytes_read] = '\0';
+                        continue;
+                    }
 
-                        std::string_view raw_input(io_buf->data(), io_buf->size());
-                        std::string parsed_cmd = RespParser::parse_array_to_cmd(raw_input);
+                    io_buf->set_size(static_cast<std::size_t>(bytes_read));
+                    io_buf->data()[bytes_read] = '\0';
 
-                        if (!parsed_cmd.empty()) {
-                            auto cmd = CommandFactory::parse(parsed_cmd);
-                            std::string resp_out;
+                    std::string_view raw_input(io_buf->data(), io_buf->size());
+                    parsed_cmd = RespParser::parse_array_to_cmd(raw_input);
+                } // io_buf leaves scope -> reset() called & returned to ObjectPool automatically
 
-                            if (cmd) {
-                                std::string res = cmd->execute(store_);
-                                if (aof_ && (parsed_cmd.rfind("SET", 0) == 0 || parsed_cmd.rfind("DEL", 0) == 0)) {
-                                    aof_->append(parsed_cmd);
-                                }
+                if (!parsed_cmd.empty()) {
+                    auto execute_cmd_task = [this, client_fd, parsed_cmd]() {
+                        auto cmd = CommandFactory::parse(parsed_cmd);
+                        std::string resp_out;
 
-                                if (res == "OK") resp_out = RespParser::serialize_simple_string("OK");
-                                else if (res == "(nil)") resp_out = RespParser::serialize_null();
-                                else if (res.rfind("(integer)", 0) == 0) resp_out = RespParser::serialize_simple_string(res);
-                                else resp_out = RespParser::serialize_bulk_string(res);
-                            } else {
-                                resp_out = RespParser::serialize_error("unknown command");
+                        if (cmd) {
+                            std::string res = cmd->execute(store_);
+                            if (aof_ && (parsed_cmd.rfind("SET", 0) == 0 || parsed_cmd.rfind("DEL", 0) == 0)) {
+                                aof_->append(parsed_cmd);
                             }
 
-                            write(client_fd, resp_out.data(), resp_out.size());
+                            if (res == "OK") resp_out = RespParser::serialize_simple_string("OK");
+                            else if (res == "(nil)") resp_out = RespParser::serialize_null();
+                            else if (res.rfind("(integer)", 0) == 0) resp_out = RespParser::serialize_simple_string(res);
+                            else resp_out = RespParser::serialize_bulk_string(res);
+                        } else {
+                            resp_out = RespParser::serialize_error("unknown command");
                         }
+
+                        write(client_fd, resp_out.data(), resp_out.size());
+                    };
+
+                    if (thread_pool_) {
+                        thread_pool_->enqueue(execute_cmd_task);
+                    } else {
+                        execute_cmd_task(); // Inline fallback if ThreadPool is not provided
                     }
-                } // io_buf leaves scope -> reset() called & returned to ObjectPool automatically!
+                }
             }
         }
     }
