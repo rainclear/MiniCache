@@ -3,6 +3,7 @@
 #include "server/server.hpp"
 #include "common/object_pool.hpp"
 #include "common/thread_pool.hpp"
+#include "net/buffer.hpp"
 
 #include <iostream>
 #include <csignal>
@@ -32,26 +33,26 @@ int main(int argc, char* argv[]) {
     std::cout << "           MiniCache In-Memory Engine            \n";
     std::cout << "==================================================\n";
 
-    // 1. Initialize Storage Engine & AOF Persistence
+    // 1. 初始化存储引擎与 AOF 持久化
     minicache::CacheStore store(10000, 500);
     minicache::AofEngine aof("minicache.aof");
 
-    // 2. Replay AOF log if present
+    // 2. 重放 AOF 持久化日志
     std::cout << "[AOF] Replaying persistent logs from minicache.aof...\n";
     std::size_t replayed = aof.load(store);
     std::cout << "[AOF] Replayed " << replayed << " commands. Current cache size: " << store.size() << "\n";
 
-    // 3. Initialize Shared ObjectPool for Network Buffers
-    auto buffer_pool = std::make_shared<minicache::ObjectPool<minicache::NetworkBuffer>>(32);
+    // 3. 初始化网络 Buffer 对象池
+    auto buffer_pool = std::make_shared<minicache::ObjectPool<minicache::net::NetworkBuffer>>(32);
     std::cout << "[Pool] Pre-allocated " << buffer_pool->available_count() << " network buffers in ObjectPool.\n";
 
-    // 4. Initialize Worker ThreadPool for Parallel Task Execution
+    // 4. 初始化工作线程池
     unsigned int num_workers = std::thread::hardware_concurrency();
     if (num_workers == 0) num_workers = 4;
     auto thread_pool = std::make_shared<minicache::ThreadPool>(num_workers);
     std::cout << "[ThreadPool] Spawned " << thread_pool->thread_count() << " worker threads.\n";
 
-    // 5. Start Server with Pooled Network I/O and ThreadPool Offloading
+    // 5. 启动 Server（传入重构后的 net::NetworkBuffer 命名空间类型）
     minicache::Server server(store, &aof, port, buffer_pool, thread_pool);
     server.start();
 

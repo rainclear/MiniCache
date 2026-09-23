@@ -16,6 +16,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 # Build minicache static library with new subdirectory paths
 add_library(minicache_lib
+    src/net/acceptor.cpp
+    src/net/connection.cpp
+    src/net/reactor.cpp
     src/storage/cache_store.cpp
     src/protocol/command_factory.cpp
     src/aof/aof_engine.cpp

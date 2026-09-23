@@ -5,83 +5,48 @@
 #include "aof/aof_engine.hpp"
 #include "common/object_pool.hpp"
 #include "common/thread_pool.hpp"
+#include "net/reactor.hpp"
+#include "net/acceptor.hpp"
+#include "net/connection.hpp"
 
-#include <string>
+#include <memory>
+#include <unordered_map>
 #include <thread>
 #include <stop_token>
-#include <memory>
-#include <cstring>
-#include <algorithm>
-#include <array>
 
 namespace minicache {
 
-/**
- * @brief Reusable network buffer satisfying C++20 Resettable concept.
- */
-class NetworkBuffer {
-public:
-    static constexpr std::size_t kCapacity = 4096;
-
-    NetworkBuffer() {
-        data_.fill(0);
-    }
-
-    void reset() {
-        std::fill(data_.begin(), data_.begin() + size_, 0);
-        size_ = 0;
-    }
-
-    [[nodiscard]] char* data() noexcept { return data_.data(); }
-    [[nodiscard]] const char* data() const noexcept { return data_.data(); }
-    [[nodiscard]] std::size_t capacity() const noexcept { return kCapacity; }
-    [[nodiscard]] std::size_t size() const noexcept { return size_; }
-    void set_size(std::size_t s) noexcept { size_ = std::min(s, kCapacity); }
-
-private:
-    std::array<char, kCapacity> data_;
-    std::size_t size_{0};
-};
-
-/**
- * @brief Non-blocking Epoll-based TCP Server integrated with ObjectPool and ThreadPool.
- */
 class Server {
 public:
     Server(CacheStore& store, 
            AofEngine* aof = nullptr, 
            int port = 6379,
-           std::shared_ptr<ObjectPool<NetworkBuffer>> buffer_pool = nullptr,
+           std::shared_ptr<ObjectPool<net::NetworkBuffer>> buffer_pool = nullptr,
            std::shared_ptr<ThreadPool> thread_pool = nullptr);
     ~Server();
 
-    // Non-copyable, non-movable
     Server(const Server&) = delete;
     Server& operator=(const Server&) = delete;
-    Server(Server&&) = delete;
-    Server& operator=(Server&&) = delete;
 
-    /**
-     * @brief Starts the background TCP server event loop.
-     */
     void start();
-
-    /**
-     * @brief Signals the server event loop to stop and closes socket resources.
-     */
     void stop();
 
 private:
-    void event_loop(std::stop_token stop_tok);
-    static void set_nonblocking(int fd);
+    void on_new_connection(int conn_fd);
+    void on_message(int fd, std::string_view raw_data);
+    void on_close(int fd);
 
     CacheStore& store_;
     AofEngine* aof_;
     int port_;
-    std::shared_ptr<ObjectPool<NetworkBuffer>> buffer_pool_;
+    
+    std::shared_ptr<ObjectPool<net::NetworkBuffer>> buffer_pool_;
     std::shared_ptr<ThreadPool> thread_pool_;
-    int listen_fd_{-1};
-    int epoll_fd_{-1};
+
+    net::Reactor reactor_;
+    net::Acceptor acceptor_;
+    
+    std::unordered_map<int, std::unique_ptr<net::Connection>> connections_;
     std::jthread server_thread_;
 };
 
