@@ -14,14 +14,16 @@ Makefile
 .idea/
 *.swp
 *~
+.DS_Store
 
 # Ignore compiled binary artifacts & object files
 *.o
 *.a
 *.so
 *.dylib
-test_cache
-test_command
+
+# Ignore test binary executables (wildcard to cover all test executables)
+test_*
 
 # Ignore persistent log files generated during local runs
 *.aof

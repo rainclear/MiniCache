@@ -1,5 +1,5 @@
-#include "minicache/aof_engine.hpp"
-#include "minicache/command_factory.hpp"
+#include "aof/aof_engine.hpp"
+#include "protocol/command_factory.hpp"
 #include <fstream>
 #include <iostream>
 

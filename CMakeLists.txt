@@ -11,19 +11,20 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# Set binary output directory to Workspace/MiniCache/bin
+# Set binary output directory to bin/
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
-include_directories(include)
-
-# Build minicache static library
+# Build minicache static library with new subdirectory paths
 add_library(minicache_lib
-    src/cache_store.cpp
-    src/command_factory.cpp
-    src/aof_engine.cpp
-    src/resp_parser.cpp
-    src/server.cpp
+    src/storage/cache_store.cpp
+    src/protocol/command_factory.cpp
+    src/aof/aof_engine.cpp
+    src/protocol/resp_parser.cpp
+    src/server/server.cpp
 )
+
+# Export src/ directory so that lib target and dependent executables can find headers
+target_include_directories(minicache_lib PUBLIC src)
 
 # Server Executable -> bin/minicache_server
 add_executable(minicache_server src/main.cpp)

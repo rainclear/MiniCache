@@ -1,5 +1,5 @@
-#include "minicache/sharded_cache_store.hpp"
-#include "minicache/command_factory.hpp"
+#include "storage/sharded_cache_store.hpp"
+#include "protocol/command_factory.hpp"
 #include <iostream>
 #include <cassert>
 #include <thread>

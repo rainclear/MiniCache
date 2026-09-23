@@ -1,8 +1,8 @@
 #ifndef MINICACHE_COMMAND_HPP
 #define MINICACHE_COMMAND_HPP
 
-#include "minicache/cache_store.hpp"
-#include "minicache/sharded_cache_store.hpp"
+#include "storage/cache_store.hpp"
+#include "storage/sharded_cache_store.hpp"
 #include <string>
 #include <memory>
 

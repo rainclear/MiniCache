@@ -1,4 +1,4 @@
-#include "minicache/cache_store.hpp"
+#include "storage/cache_store.hpp"
 #include <iostream>
 #include <cassert>
 #include <thread>

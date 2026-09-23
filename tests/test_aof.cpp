@@ -1,6 +1,6 @@
-#include "minicache/cache_store.hpp"
-#include "minicache/aof_engine.hpp"
-#include "minicache/command_factory.hpp"
+#include "storage/cache_store.hpp"
+#include "aof/aof_engine.hpp"
+#include "protocol/command_factory.hpp"
 #include <iostream>
 #include <cassert>
 #include <filesystem>

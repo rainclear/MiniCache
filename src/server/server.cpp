@@ -1,6 +1,6 @@
-#include "minicache/server.hpp"
-#include "minicache/command_factory.hpp"
-#include "minicache/resp_parser.hpp"
+#include "server/server.hpp"
+#include "protocol/command_factory.hpp"
+#include "protocol/resp_parser.hpp"
 
 #include <iostream>
 #include <unistd.h>

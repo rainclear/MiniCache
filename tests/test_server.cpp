@@ -1,5 +1,5 @@
-#include "minicache/cache_store.hpp"
-#include "minicache/server.hpp"
+#include "storage/cache_store.hpp"
+#include "server/server.hpp"
 #include <iostream>
 #include <cassert>
 #include <sys/socket.h>

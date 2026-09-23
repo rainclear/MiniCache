@@ -1,7 +1,7 @@
 #ifndef MINICACHE_SHARDED_CACHE_STORE_HPP
 #define MINICACHE_SHARDED_CACHE_STORE_HPP
 
-#include "minicache/cache_store.hpp"
+#include "storage/cache_store.hpp"
 #include <vector>
 #include <memory>
 #include <string>

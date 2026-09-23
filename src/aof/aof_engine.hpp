@@ -1,7 +1,7 @@
 #ifndef MINICACHE_AOF_ENGINE_HPP
 #define MINICACHE_AOF_ENGINE_HPP
 
-#include "minicache/cache_store.hpp"
+#include "storage/cache_store.hpp"
 #include <string>
 #include <fstream>
 #include <mutex>

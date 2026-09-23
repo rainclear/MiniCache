@@ -1,7 +1,7 @@
 #ifndef MINICACHE_COMMAND_FACTORY_HPP
 #define MINICACHE_COMMAND_FACTORY_HPP
 
-#include "minicache/command.hpp"
+#include "protocol/command.hpp"
 #include <functional>
 #include <unordered_map>
 #include <string>

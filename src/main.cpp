@@ -1,8 +1,8 @@
-#include "minicache/cache_store.hpp"
-#include "minicache/aof_engine.hpp"
-#include "minicache/server.hpp"
-#include "minicache/object_pool.hpp"
-#include "minicache/thread_pool.hpp"
+#include "storage/cache_store.hpp"
+#include "aof/aof_engine.hpp"
+#include "server/server.hpp"
+#include "common/object_pool.hpp"
+#include "common/thread_pool.hpp"
 
 #include <iostream>
 #include <csignal>
